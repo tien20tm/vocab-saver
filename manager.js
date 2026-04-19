@@ -371,6 +371,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // DOM Elements
   const wordList = document.getElementById('word-list');
   const filterCategory = document.getElementById('filter-category');
+  const searchWordsInput = document.getElementById('search-words');
   const addWordInput = document.getElementById('add-word');
   const addMeaningInput = document.getElementById('add-meaning');
   const addCategorySelect = document.getElementById('add-category');
@@ -464,11 +465,12 @@ document.addEventListener('DOMContentLoaded', function() {
   loadApiSettings();
 
   // Event Listeners
-  filterCategory.addEventListener('change', loadWords);
+  filterCategory.addEventListener('change', function() { currentPage = 1; renderCurrentPage(); });
+  if (searchWordsInput) searchWordsInput.addEventListener('input', function() { currentPage = 1; renderCurrentPage(); });
   addWordBtn.addEventListener('click', addWord);
   addCategoryBtn.addEventListener('click', addCategory);
   exportBtn.addEventListener('click', exportWords);
-  importBtn.addEventListener('click', importCSV);
+  if (importBtn) importBtn.addEventListener('click', importCSV);
   
   // AI API Tab Event Listeners
   translationServiceSelect.addEventListener('change', function() {
@@ -633,25 +635,52 @@ document.addEventListener('DOMContentLoaded', function() {
       categoryName.className = 'font-medium text-gray-800';
       categoryName.textContent = category.name;
       
+      // Action buttons container
+      const actionBtns = document.createElement('div');
+      actionBtns.className = 'flex space-x-1';
+
+      // Rename button
+      const renameBtn = document.createElement('button');
+      renameBtn.className = 'text-gray-400 hover:text-blue-500 transition-colors p-1 rounded-full hover:bg-blue-50';
+      renameBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>';
+      renameBtn.title = 'Rename category';
+      renameBtn.addEventListener('click', function() { renameCategoryModal(category); });
+
+      // Clear words button
+      const clearBtn = document.createElement('button');
+      clearBtn.className = 'text-gray-400 hover:text-yellow-600 transition-colors p-1 rounded-full hover:bg-yellow-50';
+      clearBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>';
+      clearBtn.title = 'Clear all words in this category';
+      clearBtn.addEventListener('click', function() {
+        if (confirm(`Clear ALL words in "${category.name}"? This cannot be undone.`)) {
+          clearCategoryWords(category.id, category.name);
+        }
+      });
+
       const deleteBtn = document.createElement('button');
       deleteBtn.className = 'text-gray-400 hover:text-red-500 transition-colors p-1 rounded-full hover:bg-red-50';
-      deleteBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>';
+      deleteBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>';
       deleteBtn.title = 'Delete category';
-      
-      // Don't allow deleting default category
+
       if (category.id === 'default') {
+        renameBtn.disabled = true;
+        renameBtn.className += ' opacity-50 cursor-not-allowed';
         deleteBtn.disabled = true;
         deleteBtn.className += ' opacity-50 cursor-not-allowed';
       } else {
         deleteBtn.addEventListener('click', function() {
-          if (confirm(`Are you sure you want to delete the "${category.name}" category? All vocabulary in this category will be moved to the Default category.`)) {
+          if (confirm(`Delete "${category.name}"? All vocabulary in this category will be moved to Default.`)) {
             deleteCategory(category.id);
           }
         });
       }
-      
+
+      actionBtns.appendChild(renameBtn);
+      actionBtns.appendChild(clearBtn);
+      actionBtns.appendChild(deleteBtn);
+
       header.appendChild(categoryName);
-      header.appendChild(deleteBtn);
+      header.appendChild(actionBtns);
       categoryItem.appendChild(header);
       
       // Hiển thị thông tin ngôn ngữ
@@ -739,11 +768,16 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Get filter value
     const filterValue = filterCategory.value;
-    
-    // Filter words by category if needed
-    const filteredWords = filterValue === 'all' 
-      ? words 
-      : words.filter(word => word.categoryId === filterValue);
+    const searchTerm = searchWordsInput ? (/** @type {HTMLInputElement} */ (searchWordsInput)).value.trim().toLowerCase() : '';
+
+    // Filter words by category then search term
+    let filteredWords = filterValue === 'all' ? words : words.filter(word => word.categoryId === filterValue);
+    if (searchTerm) {
+      filteredWords = filteredWords.filter(word =>
+        word.text.toLowerCase().includes(searchTerm) ||
+        (word.meaning && word.meaning.toLowerCase().includes(searchTerm))
+      );
+    }
     
     // Tính toán tổng số trang
     totalPages = Math.max(1, Math.ceil(filteredWords.length / pageSize));
@@ -1485,6 +1519,89 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  // Rename a category via modal
+  function renameCategoryModal(category) {
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+
+    const box = document.createElement('div');
+    box.className = 'bg-card rounded-lg shadow-lg p-6 w-full max-w-sm mx-4';
+
+    const title = document.createElement('h3');
+    title.className = 'text-lg font-semibold text-normal mb-4';
+    title.textContent = 'Rename Category';
+    box.appendChild(title);
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = category.name;
+    input.className = 'w-full px-3 py-2 border border-normal bg-card text-normal rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4';
+    box.appendChild(input);
+
+    const btnRow = document.createElement('div');
+    btnRow.className = 'flex justify-end space-x-3';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', () => modal.remove());
+
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700';
+    saveBtn.textContent = 'Save';
+    saveBtn.addEventListener('click', () => {
+      const newName = input.value.trim();
+      if (!newName) { alert('Name cannot be empty.'); return; }
+      if (newName === category.name) { modal.remove(); return; }
+      chrome.storage.local.get(['vocabulary-categories'], function(result) {
+        if (!result['vocabulary-categories']) return;
+        const cats = JSON.parse(result['vocabulary-categories']);
+        if (cats.some(c => c.id !== category.id && c.name.toLowerCase() === newName.toLowerCase())) {
+          alert('A category with that name already exists.');
+          return;
+        }
+        const updated = cats.map(c => c.id === category.id ? { ...c, name: newName } : c);
+        chrome.storage.local.set({ 'vocabulary-categories': JSON.stringify(updated) }, function() {
+          localStorage.setItem('vocabulary-categories', JSON.stringify(updated));
+          modal.remove();
+          loadCategories();
+          const msg = document.createElement('div');
+          msg.className = 'fixed bottom-4 right-4 bg-green-600 text-white p-3 rounded shadow-lg';
+          msg.textContent = `Renamed to "${newName}"`;
+          document.body.appendChild(msg);
+          setTimeout(() => msg.remove(), 3000);
+        });
+      });
+    });
+
+    btnRow.appendChild(cancelBtn);
+    btnRow.appendChild(saveBtn);
+    box.appendChild(btnRow);
+    modal.appendChild(box);
+    document.body.appendChild(modal);
+    input.focus();
+    input.select();
+  }
+
+  // Clear all words in a category
+  function clearCategoryWords(categoryId, categoryName) {
+    chrome.storage.local.get(['vocabulary-words'], function(result) {
+      if (!result['vocabulary-words']) return;
+      const words = JSON.parse(result['vocabulary-words']);
+      const remaining = words.filter(w => w.categoryId !== categoryId);
+      const removed = words.length - remaining.length;
+      chrome.storage.local.set({ 'vocabulary-words': JSON.stringify(remaining) }, function() {
+        window.filteredVocabularyWords = remaining;
+        renderCurrentPage();
+        const msg = document.createElement('div');
+        msg.className = 'fixed bottom-4 right-4 bg-yellow-600 text-white p-3 rounded shadow-lg';
+        msg.textContent = `Cleared ${removed} word(s) from "${categoryName}"`;
+        document.body.appendChild(msg);
+        setTimeout(() => msg.remove(), 3000);
+      });
+    });
+  }
+
   // Delete a category
   function deleteCategory(categoryId) {
     console.log('Deleting category with ID:', categoryId);
@@ -1679,17 +1796,19 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Import từ file CSV
   function importCSV() {
-    const file = importFileInput.files[0];
-    if (!file) {
+    const fileInput = /** @type {HTMLInputElement} */ (importFileInput);
+    const catSelect = /** @type {HTMLSelectElement} */ (importCategorySelect);
+    if (!fileInput || !fileInput.files || !fileInput.files[0]) {
       alert('Please select a CSV file to import.');
       return;
     }
-
-    const forceCategoryId = importCategorySelect.value === 'auto' ? null : importCategorySelect.value;
+    const file = fileInput.files[0];
+    const forceCategoryId = catSelect && catSelect.value !== 'auto' ? catSelect.value : null;
 
     const reader = new FileReader();
     reader.onload = function(e) {
-      const text = e.target.result;
+      const text = /** @type {string} */ (e.target && e.target.result);
+      if (!text || typeof text !== 'string') return;
       const lines = text.split('\n');
 
       // Bỏ qua các dòng comment (#) và header
@@ -1761,7 +1880,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const updatedWords = [...existingWords, ...newWords];
         chrome.storage.local.set({ 'vocabulary-words': JSON.stringify(updatedWords) }, function() {
           window.filteredVocabularyWords = updatedWords;
-          importFileInput.value = '';
+          if (fileInput) fileInput.value = '';
           showImportResult(true, `Imported ${newWords.length} word(s). Skipped: ${skipped} duplicates${errors ? ', ' + errors + ' invalid rows' : ''}.`);
           loadWords();
         });
@@ -1794,10 +1913,11 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function showImportResult(success, message) {
+    if (!importResult) return;
     importResult.textContent = message;
     importResult.className = `mt-3 text-sm p-2 rounded ${success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`;
     importResult.classList.remove('hidden');
-    setTimeout(() => importResult.classList.add('hidden'), 6000);
+    setTimeout(() => importResult && importResult.classList.add('hidden'), 6000);
   }
 
   // Hàm lọc từ vựng theo khoảng thời gian
