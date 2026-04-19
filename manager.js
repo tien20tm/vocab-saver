@@ -954,110 +954,129 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Hàm chỉnh sửa nghĩa của từ
+  // Hàm chỉnh sửa từ (word, meaning, category)
   function editWordMeaning(word) {
-    // Tạo modal chỉnh sửa
     const editModal = document.createElement('div');
     editModal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-    
-    // Nội dung modal
+
     const modalContent = document.createElement('div');
     modalContent.className = 'bg-card rounded-lg shadow-lg p-6 w-full max-w-lg mx-4';
-    
+
     // Header
     const modalHeader = document.createElement('div');
     modalHeader.className = 'flex justify-between items-center mb-4';
-    
+
     const modalTitle = document.createElement('h3');
     modalTitle.className = 'text-xl font-semibold text-normal';
-    modalTitle.textContent = `Edit meaning for "${word.text}"`;
+    modalTitle.textContent = `Edit "${word.text}"`;
     modalHeader.appendChild(modalTitle);
-    
+
     const closeButton = document.createElement('button');
     closeButton.className = 'text-gray-400 hover:text-gray-600';
     closeButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>';
     closeButton.addEventListener('click', () => editModal.remove());
     modalHeader.appendChild(closeButton);
-    
     modalContent.appendChild(modalHeader);
-    
-    // Input field for meaning
-    const inputLabel = document.createElement('label');
-    inputLabel.className = 'block text-sm font-medium text-normal mb-2';
-    inputLabel.textContent = 'Meaning:';
-    modalContent.appendChild(inputLabel);
-    
+
+    // Field: Word
+    const wordLabel = document.createElement('label');
+    wordLabel.className = 'block text-sm font-medium text-normal mb-1';
+    wordLabel.textContent = 'Word:';
+    modalContent.appendChild(wordLabel);
+
+    const wordInput = document.createElement('input');
+    wordInput.type = 'text';
+    wordInput.className = 'w-full px-3 py-2 border border-normal rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4 bg-card text-normal';
+    wordInput.value = word.text || '';
+    modalContent.appendChild(wordInput);
+
+    // Field: Category
+    const catLabel = document.createElement('label');
+    catLabel.className = 'block text-sm font-medium text-normal mb-1';
+    catLabel.textContent = 'Category:';
+    modalContent.appendChild(catLabel);
+
+    const catSelect = document.createElement('select');
+    catSelect.className = 'w-full px-3 py-2 border border-normal rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4 bg-card text-normal';
+    modalContent.appendChild(catSelect);
+
+    // Load categories vào dropdown
+    chrome.storage.local.get(['vocabulary-categories'], function(result) {
+      const cats = result['vocabulary-categories'] ? JSON.parse(result['vocabulary-categories']) : [];
+      cats.forEach(cat => {
+        const opt = document.createElement('option');
+        opt.value = cat.id;
+        opt.textContent = cat.name;
+        if (cat.id === word.categoryId) opt.selected = true;
+        catSelect.appendChild(opt);
+      });
+    });
+
+    // Field: Meaning
+    const meaningLabel = document.createElement('label');
+    meaningLabel.className = 'block text-sm font-medium text-normal mb-1';
+    meaningLabel.textContent = 'Meaning:';
+    modalContent.appendChild(meaningLabel);
+
     const meaningInput = document.createElement('textarea');
-    meaningInput.className = 'w-full px-3 py-2 border border-normal rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500';
+    meaningInput.className = 'w-full px-3 py-2 border border-normal rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-card text-normal';
     meaningInput.value = word.meaning || '';
-    meaningInput.rows = 4;
+    meaningInput.rows = 3;
     modalContent.appendChild(meaningInput);
-    
+
     // Buttons
     const buttonGroup = document.createElement('div');
     buttonGroup.className = 'mt-6 flex justify-end space-x-3';
-    
+
     const cancelButton = document.createElement('button');
     cancelButton.className = 'px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300';
     cancelButton.textContent = 'Cancel';
     cancelButton.addEventListener('click', () => editModal.remove());
     buttonGroup.appendChild(cancelButton);
-    
+
     const saveButton = document.createElement('button');
     saveButton.className = 'px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700';
     saveButton.textContent = 'Save Changes';
     saveButton.addEventListener('click', () => {
-      // Cập nhật nghĩa của từ
-      updateWordMeaning(word.id, meaningInput.value.trim());
+      const newText = wordInput.value.trim();
+      const newMeaning = meaningInput.value.trim();
+      const newCategoryId = catSelect.value;
+      if (!newText) { wordInput.focus(); return; }
+      updateWord(word.id, newText, newMeaning, newCategoryId);
       editModal.remove();
     });
     buttonGroup.appendChild(saveButton);
-    
+
     modalContent.appendChild(buttonGroup);
     editModal.appendChild(modalContent);
-    
-    // Add modal to page
     document.body.appendChild(editModal);
-    
-    // Focus input
-    meaningInput.focus();
+    wordInput.focus();
   }
-  
-  // Hàm cập nhật nghĩa của từ
-  function updateWordMeaning(wordId, newMeaning) {
+
+  // Hàm cập nhật từ (text, meaning, category)
+  function updateWord(wordId, newText, newMeaning, newCategoryId) {
     chrome.storage.local.get(['vocabulary-words'], function(result) {
       if (!result['vocabulary-words']) return;
-      
+
       let words = JSON.parse(result['vocabulary-words']);
-      
-      // Tìm và cập nhật từ vựng
-      const wordIndex = words.findIndex(word => word.id === wordId);
+      const wordIndex = words.findIndex(w => w.id === wordId);
       if (wordIndex === -1) return;
-      
-      // Cập nhật nghĩa
-      const updatedWord = words[wordIndex];
-      updatedWord.meaning = newMeaning;
-      words[wordIndex] = updatedWord;
-      
-      // Lưu lại danh sách từ đã cập nhật
-      chrome.storage.local.set({
-        'vocabulary-words': JSON.stringify(words)
-      }, function() {
-        // Thông báo cập nhật thành công
+
+      words[wordIndex].text = newText;
+      words[wordIndex].meaning = newMeaning;
+      words[wordIndex].categoryId = newCategoryId;
+      words[wordIndex].updatedAt = Date.now();
+
+      chrome.storage.local.set({ 'vocabulary-words': JSON.stringify(words) }, function() {
         const updateMsg = document.createElement('div');
-        updateMsg.className = 'fixed bottom-4 right-4 bg-green-600 text-white p-3 rounded shadow-lg';
-        updateMsg.innerHTML = `Updated meaning for "${updatedWord.text}"`;
+        updateMsg.className = 'fixed bottom-4 right-4 bg-green-600 text-white p-3 rounded shadow-lg z-50';
+        updateMsg.textContent = `Updated "${newText}"`;
         document.body.appendChild(updateMsg);
-        
-        // Tự động ẩn thông báo sau 3 giây
-        setTimeout(() => {
-          updateMsg.remove();
-        }, 3000);
-        
-        // Cập nhật danh sách từ vựng đã lọc
+        setTimeout(() => updateMsg.remove(), 3000);
+
+        // Sort: từ mới sửa / mới tạo lên đầu
+        words.sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt));
         window.filteredVocabularyWords = words;
-        
-        // Reload words với trang hiện tại
         renderCurrentPage();
       });
     });

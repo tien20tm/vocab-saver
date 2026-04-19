@@ -28,6 +28,8 @@ document.addEventListener('DOMContentLoaded', function() {
   const flashcardOrderMode = document.getElementById('flashcard-order-mode');
   const matchPairsCount = document.getElementById('match-pairs-count');
   const autoSpeakToggle = document.getElementById('auto-speak-toggle');
+  const wordsLearnedElement = document.getElementById('words-learned');
+  const totalWordsElement = document.getElementById('total-words');
 
   // State cho study mode
   let studyWords = [];
@@ -42,12 +44,17 @@ document.addEventListener('DOMContentLoaded', function() {
   let gameTimerInterval = null;
   let currentStudyMode = 'flashcards'; // Default mode
   
-  // State cho auto speak
+  // State cho auto speak (match mode)
   let autoSpeakEnabled = false;
+  if (autoSpeakToggle) {
+    autoSpeakToggle.addEventListener('change', function() {
+      autoSpeakEnabled = this.value === 'on';
+    });
+  }
 
-  autoSpeakToggle.addEventListener('change', function() {
-    autoSpeakEnabled = this.checked;
-  });
+  // State theo dõi từ đã chơi (reset khi Refresh Data)
+  let playedWordIds = new Set();
+  let currentGameWords = [];
 
   // State cho chế độ học
   let flashcardMode = 'random'; // 'sequential' hoặc 'random'
@@ -1382,6 +1389,11 @@ document.addEventListener('DOMContentLoaded', function() {
   // Event listener cho nút làm mới dữ liệu
   refreshDataBtn.addEventListener('click', () => {
     console.log('Refresh data button clicked');
+    // Reset trạng thái từ đã chơi
+    playedWordIds = new Set();
+    currentGameWords = [];
+    if (wordsLearnedElement) wordsLearnedElement.textContent = '0';
+    if (totalWordsElement) totalWordsElement.textContent = '0';
     // Xóa localStorage cache
     localStorage.removeItem('vocabulary-words-cache');
     localStorage.removeItem('vocabulary-categories-cache');
@@ -1405,16 +1417,9 @@ document.addEventListener('DOMContentLoaded', function() {
   flashcardElement.addEventListener('click', function() {
     if (studyWords.length === 0) return;
 
-    const wasOnFront = !isCardFlipped;
-
     // Toggle flip class
     this.classList.toggle('flipped');
     isCardFlipped = !isCardFlipped;
-
-    // Auto TTS khi click mặt trước (chọn), không phát khi lật lại (bỏ chọn)
-    if (wasOnFront && autoSpeakEnabled && studyWords[currentCardIndex]) {
-      playPronunciation(studyWords[currentCardIndex]);
-    }
 
     // Phát âm thanh khi lật thẻ
     playCardFlipSound();
@@ -2393,26 +2398,41 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
       }
       
+      // Cập nhật tổng số từ (chỉ lần đầu hoặc khi reset)
+      if (totalWordsElement) totalWordsElement.textContent = words.length.toString();
+      if (wordsLearnedElement && playedWordIds.size === 0) wordsLearnedElement.textContent = '0';
+
+      // Lọc ra các từ chưa chơi
+      const availableWords = words.filter(w => !playedWordIds.has(w.id));
+
+      // Nếu đã chơi hết, thông báo
+      if (availableWords.length === 0) {
+        matchGameBoard.innerHTML = `
+          <div class="text-center py-8 col-span-full">
+            <p class="text-green-600 font-bold mb-2">🎉 Bạn đã hoàn thành tất cả từ vựng!</p>
+            <p class="text-gray-500">Nhấn <strong>Refresh Data</strong> để học lại từ đầu.</p>
+          </div>
+        `;
+        return;
+      }
+
       // Lấy số lượng cặp từ từ dropdown
       const pairsCountValue = matchPairsCount.value;
       let maxPairs;
-      
+
       if (pairsCountValue === 'all') {
-        // Sử dụng tất cả các từ có sẵn
-        maxPairs = words.length;
+        maxPairs = availableWords.length;
       } else {
-        // Chuyển đổi giá trị từ chuỗi sang số
         const requestedPairs = parseInt(pairsCountValue, 10);
-        
-        // Đảm bảo không vượt quá số từ vựng hiện có
-        maxPairs = Math.min(requestedPairs, words.length);
+        maxPairs = Math.min(requestedPairs, availableWords.length);
       }
-      
-      console.log('Starting match game with', maxPairs, 'pairs');
-      
-      // Shuffle toàn bộ pool trước khi chọn maxPairs từ ngẫu nhiên
-      const shuffledPool = [...words].sort(() => Math.random() - 0.5);
+
+      console.log('Starting match game with', maxPairs, 'pairs,', availableWords.length, 'available');
+
+      // Shuffle và chọn từ chưa chơi
+      const shuffledPool = [...availableWords].sort(() => Math.random() - 0.5);
       const gameWords = shuffledPool.slice(0, maxPairs);
+      currentGameWords = gameWords;
       
       // Set game active
       matchGameActive = true;
@@ -2848,6 +2868,20 @@ document.addEventListener('DOMContentLoaded', function() {
       card.classList.add('selected');
       selectedCards.push(card);
       playCardFlipSound();
+
+      // Auto TTS khi chọn word card
+      if (autoSpeakEnabled && cardType === 'word') {
+        const wordObj = currentGameWords.find(w => w.id === originalId);
+        if (wordObj) {
+          const pron = wordObj.pronunciation;
+          if (pron && pron.audio && pron.audio.startsWith('http')) {
+            const audio = new Audio(pron.audio);
+            audio.play().catch(() => speakWord(wordObj.text));
+          } else {
+            speakWord(wordObj.text);
+          }
+        }
+      }
     }
     
     // If we have 2 cards selected (one word and one meaning), check for a match
@@ -2927,6 +2961,10 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Helper function to handle game completion
   function handleGameCompletion() {
+    // Đánh dấu các từ vừa chơi là đã học
+    currentGameWords.forEach(w => playedWordIds.add(w.id));
+    if (wordsLearnedElement) wordsLearnedElement.textContent = playedWordIds.size.toString();
+
     // Game over - player won
     clearInterval(gameTimerInterval);
     

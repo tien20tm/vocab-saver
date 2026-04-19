@@ -106,23 +106,16 @@
         <!-- Study Mode Options (chỉ hiển thị khi chế độ tương ứng được chọn) -->
         <div class="flex items-center space-x-4">
           <!-- Options cho Flashcards -->
-          <div id="flashcard-options" class="flex items-center flex-wrap gap-3">
+          <div id="flashcard-options" class="flex items-center">
             <span class="text-sm text-normal mr-2">Flashcard Mode:</span>
             <select id="flashcard-order-mode" class="px-3 py-1 border border-normal bg-card text-normal rounded-md text-sm">
               <option value="sequential">Sequential</option>
               <option value="random" selected>Random</option>
             </select>
-            <div class="flex items-center ml-2">
-              <span class="text-sm text-normal mr-2">Auto Speak:</span>
-              <label class="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" id="auto-speak-toggle" class="sr-only peer">
-                <div class="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div>
-              </label>
-            </div>
           </div>
-          
+
           <!-- Options cho Match Game -->
-          <div id="match-options" class="flex items-center hidden">
+          <div id="match-options" class="flex items-center hidden flex-wrap gap-3">
             <span class="text-sm text-normal mr-2">Pairs per game:</span>
             <select id="match-pairs-count" class="px-3 py-1 border border-normal bg-card text-normal rounded-md text-sm">
               <option value="2">2 pairs</option>
@@ -130,6 +123,10 @@
               <option value="6" selected>6 pairs</option>
               <option value="12">12 pairs</option>
               <option value="all">All available</option>
+            </select>
+            <select id="auto-speak-toggle" class="px-3 py-1 border border-normal bg-card text-normal rounded-md text-sm">
+              <option value="off">Auto Speak: Off</option>
+              <option value="on">Auto Speak: On</option>
             </select>
           </div>
         </div>
@@ -185,6 +182,11 @@
         
         <div id="match-mode" class="study-mode-container hidden">
           <div class="match-game-container">
+            <div class="flex justify-between items-center mb-2">
+              <div class="text-normal text-sm">
+                <span class="font-medium">Words learned:</span> <span id="words-learned">0</span>/<span id="total-words">0</span>
+              </div>
+            </div>
             <div class="flex justify-between items-center mb-4">
               <div class="text-normal">
                 <span class="font-medium">Pairs matched:</span> <span id="pairs-matched">0</span>/<span id="total-pairs">0</span>
