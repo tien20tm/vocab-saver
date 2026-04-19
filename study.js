@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const matchOptions = document.getElementById('match-options');
   const flashcardOrderMode = document.getElementById('flashcard-order-mode');
   const matchPairsCount = document.getElementById('match-pairs-count');
+  const autoSpeakToggle = document.getElementById('auto-speak-toggle');
 
   // State cho study mode
   let studyWords = [];
@@ -41,6 +42,13 @@ document.addEventListener('DOMContentLoaded', function() {
   let gameTimerInterval = null;
   let currentStudyMode = 'flashcards'; // Default mode
   
+  // State cho auto speak
+  let autoSpeakEnabled = false;
+
+  autoSpeakToggle.addEventListener('change', function() {
+    autoSpeakEnabled = this.checked;
+  });
+
   // State cho chế độ học
   let flashcardMode = 'random'; // 'sequential' hoặc 'random'
   let matchPairsPerGame = 10; // Số lượng cặp từ trong match game
@@ -1396,11 +1404,18 @@ document.addEventListener('DOMContentLoaded', function() {
   // Event listeners cho flashcards
   flashcardElement.addEventListener('click', function() {
     if (studyWords.length === 0) return;
-    
+
+    const wasOnFront = !isCardFlipped;
+
     // Toggle flip class
     this.classList.toggle('flipped');
     isCardFlipped = !isCardFlipped;
-    
+
+    // Auto TTS khi click mặt trước (chọn), không phát khi lật lại (bỏ chọn)
+    if (wasOnFront && autoSpeakEnabled && studyWords[currentCardIndex]) {
+      playPronunciation(studyWords[currentCardIndex]);
+    }
+
     // Phát âm thanh khi lật thẻ
     playCardFlipSound();
   });

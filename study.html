@@ -106,12 +106,19 @@
         <!-- Study Mode Options (chỉ hiển thị khi chế độ tương ứng được chọn) -->
         <div class="flex items-center space-x-4">
           <!-- Options cho Flashcards -->
-          <div id="flashcard-options" class="flex items-center">
+          <div id="flashcard-options" class="flex items-center flex-wrap gap-3">
             <span class="text-sm text-normal mr-2">Flashcard Mode:</span>
             <select id="flashcard-order-mode" class="px-3 py-1 border border-normal bg-card text-normal rounded-md text-sm">
               <option value="sequential">Sequential</option>
               <option value="random" selected>Random</option>
             </select>
+            <div class="flex items-center ml-2">
+              <span class="text-sm text-normal mr-2">Auto Speak:</span>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="auto-speak-toggle" class="sr-only peer">
+                <div class="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div>
+              </label>
+            </div>
           </div>
           
           <!-- Options cho Match Game -->
