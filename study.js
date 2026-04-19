@@ -887,6 +887,18 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // Phát âm từ vựng
+  function speakWord(text) {
+    if (!text || !('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'en-US';
+    utterance.rate = 0.9;
+    const voices = window.speechSynthesis.getVoices();
+    const enVoice = voices.find(v => v.lang.startsWith('en-') && v.localService) || voices.find(v => v.lang.startsWith('en-'));
+    if (enVoice) utterance.voice = enVoice;
+    window.speechSynthesis.speak(utterance);
+  }
+
   function playPronunciation(word) {
     if (!word) {
       console.error('Invalid word object passed to playPronunciation');
@@ -2383,8 +2395,9 @@ document.addEventListener('DOMContentLoaded', function() {
       
       console.log('Starting match game with', maxPairs, 'pairs');
       
-      // Lấy danh sách từ vựng được sử dụng trong game
-      const gameWords = words.slice(0, maxPairs);
+      // Shuffle toàn bộ pool trước khi chọn maxPairs từ ngẫu nhiên
+      const shuffledPool = [...words].sort(() => Math.random() - 0.5);
+      const gameWords = shuffledPool.slice(0, maxPairs);
       
       // Set game active
       matchGameActive = true;
@@ -2537,22 +2550,26 @@ document.addEventListener('DOMContentLoaded', function() {
         contentElement.textContent = card.content;
         contentContainer.appendChild(contentElement);
         
-        // Add pronunciation button if available
-        if (card.type === 'word' && card.pronunciation) {
+        // Always add pronunciation button for word cards
+        if (card.type === 'word') {
           const pronBtn = document.createElement('button');
           pronBtn.className = 'mt-2 p-1 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 focus:outline-none transition-opacity duration-300';
+          pronBtn.title = 'Listen to pronunciation';
           pronBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>';
-          
-          // Handle pronunciation event
+
           pronBtn.addEventListener('click', function(e) {
             e.stopPropagation();
-            // Find corresponding word to pronounce
             const wordObj = gameWords.find(w => w.id === card.originalId);
-            if (wordObj) {
-              playPronunciation(wordObj);
+            if (!wordObj) return;
+            const pron = wordObj.pronunciation;
+            if (pron && pron.audio && pron.audio.startsWith('http')) {
+              const audio = new Audio(pron.audio);
+              audio.play().catch(() => speakWord(wordObj.text));
+            } else {
+              speakWord(wordObj.text);
             }
           });
-          
+
           contentContainer.appendChild(pronBtn);
         }
         
@@ -2754,11 +2771,16 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
     
-    // If this card type is already selected (we can only select one word and one meaning)
+    // If clicking the already-selected card → deselect it and stop
+    if (selectedCards.includes(card)) {
+      card.classList.remove('selected');
+      selectedCards = selectedCards.filter(c => c !== card);
+      return;
+    }
+
+    // If another card of the same type is already selected, deselect it first
     const alreadySelectedSameType = selectedCards.find(c => c.dataset.type === cardType);
     if (alreadySelectedSameType) {
-      // Deselect the previous card of the same type
-      console.log('Deselecting previous card of same type');
       alreadySelectedSameType.classList.remove('selected');
       selectedCards = selectedCards.filter(c => c !== alreadySelectedSameType);
     }
