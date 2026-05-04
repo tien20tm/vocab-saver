@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const studyModeTabs = document.getElementById('study-mode-tabs');
   const flashcardsTab = document.getElementById('tab-flashcards');
   const matchTab = document.getElementById('tab-match');
+  const hardTab = document.getElementById('tab-hard');
   const studyCategory = document.getElementById('study-category');
   const studyTimeRange = document.getElementById('study-time-range');
   const flashcardsMode = document.getElementById('flashcards-mode');
@@ -55,6 +56,41 @@ document.addEventListener('DOMContentLoaded', function() {
   // State theo dõi từ đã chơi (reset khi Refresh Data)
   let playedWordIds = new Set();
   let currentGameWords = [];
+
+  // State từ khó
+  let hardWordIds = new Set();
+
+  function loadHardWords() {
+    return new Promise(resolve => {
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.get(['vocabulary-hard-words'], result => {
+          hardWordIds = new Set(result['vocabulary-hard-words'] || []);
+          resolve();
+        });
+      } else {
+        const ids = JSON.parse(localStorage.getItem('vocabulary-hard-words') || '[]');
+        hardWordIds = new Set(ids);
+        resolve();
+      }
+    });
+  }
+
+  function saveHardWords() {
+    const ids = [...hardWordIds];
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.set({ 'vocabulary-hard-words': ids });
+    }
+    localStorage.setItem('vocabulary-hard-words', JSON.stringify(ids));
+  }
+
+  function toggleHardWord(wordId) {
+    if (hardWordIds.has(wordId)) {
+      hardWordIds.delete(wordId);
+    } else {
+      hardWordIds.add(wordId);
+    }
+    saveHardWords();
+  }
 
   // State cho chế độ học
   let flashcardMode = 'random'; // 'sequential' hoặc 'random'
@@ -192,10 +228,16 @@ document.addEventListener('DOMContentLoaded', function() {
     flashcardsTab.addEventListener('click', () => {
       switchTab('flashcards');
     });
-    
+
     matchTab.addEventListener('click', () => {
       switchTab('match');
     });
+
+    if (hardTab) {
+      hardTab.addEventListener('click', () => {
+        switchTab('hard');
+      });
+    }
   }
   
   // Switch between study mode tabs
@@ -219,7 +261,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Show/hide study mode options dựa vào chế độ được chọn
-    if (mode === 'flashcards') {
+    if (mode === 'flashcards' || mode === 'hard') {
       flashcardOptions.classList.remove('hidden');
       matchOptions.classList.add('hidden');
     } else if (mode === 'match') {
@@ -238,13 +280,13 @@ document.addEventListener('DOMContentLoaded', function() {
   function showStudyMode(mode) {
     console.log('Showing study mode:', mode);
     
-    if (mode === 'flashcards') {
+    if (mode === 'flashcards' || mode === 'hard') {
       // Đảm bảo flashcards được hiển thị và match game bị ẩn
       flashcardsMode.classList.remove('hidden');
       matchMode.classList.add('hidden');
-      
+
       // Khởi tạo flashcards
-      console.log('Initializing flashcards');
+      console.log('Initializing flashcards, mode:', mode);
       initFlashcards();
     } else if (mode === 'match') {
       // Đảm bảo match game được hiển thị và flashcards bị ẩn
@@ -553,12 +595,18 @@ document.addEventListener('DOMContentLoaded', function() {
         console.warn(`No words found for category: ${selectedCategory} and time range: ${studyTimeRange.value}`);
       }
       
+      // Lọc thêm nếu đang ở chế độ Hard Words
+      if (currentStudyMode === 'hard') {
+        filteredWords = filteredWords.filter(w => hardWordIds.has(w.id));
+        console.log('Hard mode: filtered to', filteredWords.length, 'hard words');
+      }
+
       // Lưu kết quả vào biến studyWords toàn cục để sử dụng trong các hàm khác
       studyWords = [...filteredWords].sort(() => Math.random() - 0.5);
       console.log('Final study words count:', studyWords.length);
-      
+
       // Cập nhật UI
-      if (currentStudyMode === 'flashcards') {
+      if (currentStudyMode === 'flashcards' || currentStudyMode === 'hard') {
         updateFlashcardContent();
         updateFlashcardControls();
       } else if (currentStudyMode === 'match') {
@@ -747,6 +795,14 @@ document.addEventListener('DOMContentLoaded', function() {
   function updateFlashcardContent() {
     if (studyWords.length === 0) {
       console.log('No study words available');
+      if (currentStudyMode === 'hard') {
+        const frontCard = flashcardElement.querySelector('.flashcard-front');
+        const backCard = flashcardElement.querySelector('.flashcard-back');
+        if (frontCard) {
+          frontCard.innerHTML = '<h3 class="text-white text-lg text-center px-4">Chưa có từ khó nào.<br><span class="text-sm opacity-80 mt-2 block">Bấm ⭐ trên flashcard để đánh dấu từ khó.</span></h3>';
+        }
+        if (backCard) backCard.innerHTML = '';
+      }
       return;
     }
     
@@ -828,6 +884,21 @@ document.addEventListener('DOMContentLoaded', function() {
     pronContainer.appendChild(pronButton);
     frontCard.appendChild(pronContainer);
     
+    // Nút đánh dấu từ khó (góc trên phải)
+    const isHard = hardWordIds.has(currentWord.id);
+    const hardBtn = document.createElement('button');
+    hardBtn.className = 'absolute top-2 right-2 focus:outline-none transition-all duration-200';
+    hardBtn.title = isHard ? 'Bỏ đánh dấu từ khó' : 'Đánh dấu từ khó';
+    hardBtn.innerHTML = isHard
+      ? '<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-yellow-300" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>'
+      : '<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white opacity-60 hover:opacity-100" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>';
+    hardBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      toggleHardWord(currentWord.id);
+      updateFlashcardContent();
+    });
+    frontCard.appendChild(hardBtn);
+
     // Thêm hướng dẫn nhỏ
     const clickHint = document.createElement('div');
     clickHint.className = 'absolute bottom-4 left-0 right-0 text-center text-white text-xs opacity-70';
@@ -2089,6 +2160,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Đảm bảo danh mục Default luôn tồn tại
     ensureDefaultCategory();
     
+    // Load danh sách từ khó
+    loadHardWords();
+
     // Thử đọc dữ liệu từ extension storage nếu đang chạy trong context của extension
     tryReadExtensionStorage();
     
