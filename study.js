@@ -2847,11 +2847,18 @@ document.addEventListener('DOMContentLoaded', function() {
           console.log(`After time range filter: ${filteredWords.length} words`);
         }
         
+        // Lọc theo hard words nếu được chọn
+        const matchWordFilter = document.getElementById('match-word-filter');
+        if (matchWordFilter && matchWordFilter.value === 'hard') {
+          filteredWords = filteredWords.filter(word => hardWordIds.has(word.id));
+          console.log(`After hard words filter: ${filteredWords.length} words`);
+        }
+
         // Kiểm tra cấu trúc dữ liệu
-        filteredWords = filteredWords.filter(word => 
+        filteredWords = filteredWords.filter(word =>
           word && word.id && word.text && word.meaning
         );
-        
+
         console.log(`Final filtered words for match game: ${filteredWords.length} words`);
         return filteredWords;
       }
