@@ -44,6 +44,8 @@ document.addEventListener('DOMContentLoaded', function() {
   let gameStartTime = 0;
   let gameTimerInterval = null;
   let currentStudyMode = 'flashcards'; // Default mode
+  /** @type {AudioContext|null} */
+  let sfxAudioContext = null; // Dùng chung 1 AudioContext cho mọi hiệu ứng âm thanh, tránh rò rỉ context khi chơi nhiều từ
   
   // State cho auto speak (match mode)
   let autoSpeakEnabled = false;
@@ -1204,10 +1206,25 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // Các hàm phát âm thanh hiệu ứng game
+  // Lấy AudioContext dùng chung, tạo mới AudioContext cho mỗi tiếng "tách" sẽ làm rò rỉ
+  // tài nguyên audio của trình duyệt và treo app sau vài chục lượt chơi.
+  function getSfxAudioContext() {
+    if (!sfxAudioContext) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return null;
+      sfxAudioContext = new AudioCtx();
+    }
+    if (sfxAudioContext.state === 'suspended') {
+      sfxAudioContext.resume();
+    }
+    return sfxAudioContext;
+  }
+
   function playCardFlipSound() {
     // Dùng tạm Web Audio API để tạo âm thanh ngắn khi lật thẻ
     try {
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const audioCtx = getSfxAudioContext();
+      if (!audioCtx) return;
       const oscillator = audioCtx.createOscillator();
       const gainNode = audioCtx.createGain();
       
@@ -1231,7 +1248,8 @@ document.addEventListener('DOMContentLoaded', function() {
   
   function playMatchSuccessSound() {
     try {
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const audioCtx = getSfxAudioContext();
+      if (!audioCtx) return;
       const oscillator = audioCtx.createOscillator();
       const gainNode = audioCtx.createGain();
       
@@ -1256,7 +1274,8 @@ document.addEventListener('DOMContentLoaded', function() {
   
   function playMatchFailSound() {
     try {
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const audioCtx = getSfxAudioContext();
+      if (!audioCtx) return;
       const oscillator = audioCtx.createOscillator();
       const gainNode = audioCtx.createGain();
       
@@ -1279,8 +1298,9 @@ document.addEventListener('DOMContentLoaded', function() {
   
   function playGameWinSound() {
     try {
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      
+      const audioCtx = getSfxAudioContext();
+      if (!audioCtx) return;
+
       // Tạo chuỗi âm thanh ngắn giống như fanfare
       [0, 0.1, 0.2, 0.3, 0.4].forEach((delay, i) => {
         const oscillator = audioCtx.createOscillator();
